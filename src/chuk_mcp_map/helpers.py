@@ -255,6 +255,214 @@ def _resolve_features(raw: Any) -> dict[str, Any]:
     return ensure_feature_collection(raw)
 
 
+# ---------------------------------------------------------------------------
+# Popup helpers — key filtering, ordering, formatting, title selection
+# ---------------------------------------------------------------------------
+
+# Keys excluded from auto-generated popups (case-insensitive exact match)
+_EXCLUDE_EXACT: set[str] = {
+    "id",
+    "fid",
+    "gid",
+    "objectid",
+    "object_id",
+    "geometry_type",
+    "bbox",
+    "geom",
+    "geometry",
+    "shape",
+    "ogc_fid",
+}
+
+# Key suffixes that trigger exclusion
+_EXCLUDE_SUFFIXES: tuple[str, ...] = ("_id",)
+
+# Priority ordering for popup fields (first match wins position)
+_PRIORITY_FIELDS: list[str] = [
+    "name",
+    "title",
+    "label",
+    "description",
+    "type",
+    "category",
+    "status",
+]
+
+# Unit suffixes detected from key names — (key_suffix, display_unit)
+_UNIT_MAP: list[tuple[str, str]] = [
+    ("_celsius", " °C"),
+    ("_c", " °C"),
+    ("_fahrenheit", " °F"),
+    ("_f", " °F"),
+    ("_kelvin", " K"),
+    ("_km", " km"),
+    ("_m", " m"),
+    ("_mi", " mi"),
+    ("_ft", " ft"),
+    ("_percent", " %"),
+    ("_pct", " %"),
+    ("_kmh", " km/h"),
+    ("_kph", " km/h"),
+    ("_mph", " mph"),
+    ("_hpa", " hPa"),
+    ("_mbar", " mbar"),
+    ("_mm", " mm"),
+    ("_cm", " cm"),
+    ("_in", " in"),
+    ("_kg", " kg"),
+    ("_lb", " lb"),
+]
+
+
+def _should_exclude_key(key: str) -> bool:
+    """Return True if *key* is an internal/technical property that should be hidden."""
+    if key.startswith("_"):
+        return True
+    lower = key.lower()
+    if lower in _EXCLUDE_EXACT:
+        return True
+    for suffix in _EXCLUDE_SUFFIXES:
+        if lower.endswith(suffix):
+            return True
+    return False
+
+
+def _humanize_key(key: str) -> str:
+    """Convert a property key to a human-readable label.
+
+    ``wind_speed`` → ``"Wind Speed"``, ``numberOfItems`` → ``"Number Of Items"``.
+    """
+    import re
+
+    # Split on underscores first
+    parts = key.split("_")
+    # Then split each part on camelCase boundaries
+    words: list[str] = []
+    for part in parts:
+        words.extend(re.sub(r"([a-z])([A-Z])", r"\1 \2", part).split())
+    return " ".join(w.capitalize() for w in words if w)
+
+
+def _format_value(key: str, value: Any) -> str:
+    """Format a property value for display, with optional unit suffix from *key*.
+
+    Numbers are comma-formatted.  Unit suffixes are detected from the key name
+    (e.g. ``temp_celsius`` → ``"12 °C"``).
+    """
+    if value is None:
+        return ""
+
+    lower_key = key.lower()
+
+    # Detect unit suffix from key name
+    unit = ""
+    for suffix, display_unit in _UNIT_MAP:
+        if lower_key.endswith(suffix):
+            unit = display_unit
+            break
+
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, int):
+        return f"{value:,}{unit}"
+    if isinstance(value, float):
+        # Avoid trailing zeros: 12.0 → "12", 12.5 → "12.5"
+        formatted = f"{value:,.10f}".rstrip("0").rstrip(".")
+        return f"{formatted}{unit}"
+    return str(value)
+
+
+def _order_fields(keys: list[str]) -> list[str]:
+    """Reorder *keys* so priority fields appear first, preserving original order otherwise."""
+    key_set = {k.lower(): k for k in keys}
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    # Priority fields first
+    for pf in _PRIORITY_FIELDS:
+        if pf in key_set and key_set[pf] not in seen:
+            ordered.append(key_set[pf])
+            seen.add(key_set[pf])
+
+    # Remaining fields in original order
+    for k in keys:
+        if k not in seen:
+            ordered.append(k)
+            seen.add(k)
+
+    return ordered
+
+
+def _pick_title(keys: list[str], seen: set[str]) -> tuple[str, list[str]]:
+    """Choose a popup title template and return the keys consumed by the title.
+
+    Returns ``(title_template, title_keys_used)``.  Prefers ``name``, then
+    ``title``, then ``label``, else the first key.  When both a name key and
+    a type/category key are present, produces a compound title like
+    ``"{name} — {type}"``.
+    """
+    lower_seen = {k.lower() for k in seen}
+    # Map lowercase → original
+    lower_map = {k.lower(): k for k in seen}
+
+    # Find primary title key
+    primary: str | None = None
+    for candidate in ("name", "title", "label"):
+        if candidate in lower_seen:
+            primary = lower_map[candidate]
+            break
+    if primary is None:
+        primary = keys[0] if keys else "id"
+
+    # Check for compound title (primary + type/category)
+    secondary: str | None = None
+    if primary.lower() in ("name", "title", "label"):
+        for candidate in ("type", "category"):
+            if candidate in lower_seen and lower_map[candidate] != primary:
+                secondary = lower_map[candidate]
+                break
+
+    if secondary:
+        title = "{" + primary + "} — {" + secondary + "}"
+        return title, [primary, secondary]
+
+    return "{" + primary + "}", [primary]
+
+
+def _auto_popup(fc: dict[str, Any]) -> PopupTemplate | None:
+    """Build a PopupTemplate from the union of all feature property keys.
+
+    Scans all features for property keys, filters out internal/technical keys,
+    orders fields by priority, picks a smart title (with optional compound
+    ``"name — type"`` format), and returns remaining keys as popup fields.
+    """
+    all_keys: list[str] = []
+    seen: set[str] = set()
+    for feat in fc.get("features", []):
+        for k in (feat.get("properties") or {}).keys():
+            if k not in seen:
+                seen.add(k)
+                all_keys.append(k)
+
+    # Filter out internal/technical keys
+    display_keys = [k for k in all_keys if not _should_exclude_key(k)]
+    if not display_keys:
+        return None
+
+    # Order by priority
+    ordered = _order_fields(display_keys)
+    display_seen = set(display_keys)
+
+    # Pick title
+    title, title_keys = _pick_title(ordered, display_seen)
+
+    # Fields = everything except title keys
+    title_set = set(title_keys)
+    fields = [k for k in ordered if k not in title_set]
+
+    return PopupTemplate(title=title, fields=fields if fields else None)
+
+
 def build_map_layer(layer_def: dict[str, Any], index: int) -> MapLayer:
     """Build a MapLayer from a layer definition dict."""
     layer_id: str = layer_def.get("id") or f"layer-{index}"
@@ -305,7 +513,7 @@ def build_map_layer(layer_def: dict[str, Any], index: int) -> MapLayer:
             logger.warning("Invalid cluster config, using defaults: %s", exc)
             cluster = ClusterConfig(enabled=True, radius=80)
 
-    # Popup
+    # Popup — explicit template, or auto-generate from feature properties
     popup: PopupTemplate | None = None
     popup_raw = layer_def.get("popup")
     if isinstance(popup_raw, dict):
@@ -313,6 +521,9 @@ def build_map_layer(layer_def: dict[str, Any], index: int) -> MapLayer:
             popup = PopupTemplate(**popup_raw)
         except (TypeError, ValueError) as exc:
             logger.warning("Invalid popup template, skipping: %s", exc)
+
+    if popup is None:
+        popup = _auto_popup(features)
 
     return MapLayer(
         id=layer_id,

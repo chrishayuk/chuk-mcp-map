@@ -23,6 +23,7 @@ from chuk_view_schemas.chuk_mcp import layers_tool, map_tool
 
 from .helpers import (
     LAYER_COLOURS,
+    _auto_popup,
     auto_center_zoom,
     bbox_to_feature_collection,
     build_layer_style,
@@ -175,7 +176,8 @@ async def show_map(
     "show_geojson",
     description=(
         "QUICK single-layer map — pass raw GeoJSON and get a map instantly. "
-        "No popups or labels — use show_map instead if you need clickable popups with data. "
+        "Auto-generates clickable popups from feature properties. "
+        "Use show_map for full control over styling, clustering, and popup templates. "
         "Accepts FeatureCollection, Feature, or bare Geometry as a JSON string. "
         "Auto-centres and auto-zooms. basemap: osm | satellite | terrain | dark."
     ),
@@ -226,7 +228,10 @@ async def show_geojson(
 
     from chuk_view_schemas.map import MapLayer
 
-    layer = MapLayer(id="geojson", label=label, features=fc, style=style, cluster=cluster_config)
+    popup = _auto_popup(fc)
+    layer = MapLayer(
+        id="geojson", label=label, features=fc, style=style, cluster=cluster_config, popup=popup
+    )
 
     center = calculate_center(fc)
     map_center = MapCenter(lat=center[0], lon=center[1]) if center else None

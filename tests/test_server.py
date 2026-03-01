@@ -14,8 +14,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from chuk_mcp_map.helpers import (
     LAYER_COLOURS,
+    _auto_popup,
     _extract_coordinates,
+    _format_value,
+    _humanize_key,
+    _order_fields,
+    _pick_title,
     _resolve_features,
+    _should_exclude_key,
     auto_center_zoom,
     bbox_to_feature_collection,
     build_layer_style,
@@ -855,13 +861,168 @@ class TestBuildMapLayerErrors:
         assert layer.cluster.enabled is True
         assert layer.cluster.radius == 80
 
-    def test_invalid_popup_dict_skipped(self):
+    def test_invalid_popup_dict_falls_back_to_auto(self):
         layer_def = {
             "id": "x",
             "label": "X",
             "features": FEATURE_COLLECTION,
             "popup": {"not_a_valid_key": "bad"},
         }
+        layer = build_map_layer(layer_def, 0)
+        # Invalid explicit popup is skipped, auto-popup takes over from properties
+        assert layer.popup is not None
+        assert layer.popup.title == "{name}"
+
+
+# ===========================================================================
+# Helper: _auto_popup
+# ===========================================================================
+
+
+class TestAutoPopup:
+    def test_generates_popup_from_properties(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"name": "London", "temp": "12°C", "wind": "15 km/h"},
+                }
+            ],
+        }
+        popup = _auto_popup(fc)
+        assert popup is not None
+        assert popup.title == "{name}"
+        # name consumed by title, remaining fields listed
+        assert "temp" in popup.fields
+        assert "wind" in popup.fields
+        assert "name" not in popup.fields
+
+    def test_prefers_name_as_title(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"city_code": "PAR", "name": "Paris", "temp": "10°C"},
+                }
+            ],
+        }
+        popup = _auto_popup(fc)
+        assert popup.title == "{name}"
+
+    def test_falls_back_to_title_key(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"title": "Site A", "value": 42},
+                }
+            ],
+        }
+        popup = _auto_popup(fc)
+        assert popup.title == "{title}"
+
+    def test_falls_back_to_label_key(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"label": "Zone X", "area": 100},
+                }
+            ],
+        }
+        popup = _auto_popup(fc)
+        assert popup.title == "{label}"
+
+    def test_falls_back_to_first_key(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"code": "ABC", "value": 99},
+                }
+            ],
+        }
+        popup = _auto_popup(fc)
+        assert popup.title == "{code}"
+
+    def test_empty_properties_returns_none(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {},
+                }
+            ],
+        }
+        assert _auto_popup(fc) is None
+
+    def test_no_features_returns_none(self):
+        fc = {"type": "FeatureCollection", "features": []}
+        assert _auto_popup(fc) is None
+
+    def test_unions_keys_across_features(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"name": "A", "temp": "5°C"},
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [1, 1]},
+                    "properties": {"name": "B", "humidity": "80%"},
+                },
+            ],
+        }
+        popup = _auto_popup(fc)
+        # name consumed by title, remaining fields listed
+        assert set(popup.fields) == {"temp", "humidity"}
+
+
+class TestBuildMapLayerAutoPopup:
+    def test_auto_popup_when_no_popup_specified(self):
+        layer_def = {"id": "x", "label": "X", "features": FEATURE_COLLECTION}
+        layer = build_map_layer(layer_def, 0)
+        # FEATURE_COLLECTION has properties with "name" key
+        assert layer.popup is not None
+        assert layer.popup.title == "{name}"
+
+    def test_explicit_popup_not_overridden(self):
+        layer_def = {
+            "id": "x",
+            "label": "X",
+            "features": FEATURE_COLLECTION,
+            "popup": {"title": "Custom: {name}", "fields": ["name"]},
+        }
+        layer = build_map_layer(layer_def, 0)
+        assert layer.popup.title == "Custom: {name}"
+
+    def test_no_popup_for_empty_properties(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {},
+                }
+            ],
+        }
+        layer_def = {"id": "x", "label": "X", "features": fc}
         layer = build_map_layer(layer_def, 0)
         assert layer.popup is None
 
@@ -912,3 +1073,284 @@ class TestMain:
 
             main()
             mock_mcp.run.assert_called_once_with(stdio=False)
+
+
+# ===========================================================================
+# Phase 1.1: Popup helpers
+# ===========================================================================
+
+
+class TestShouldExcludeKey:
+    """Tests for _should_exclude_key — filtering internal/technical properties."""
+
+    def test_underscore_prefix_excluded(self):
+        assert _should_exclude_key("_id") is True
+        assert _should_exclude_key("_internal") is True
+
+    def test_exact_match_excluded(self):
+        assert _should_exclude_key("id") is True
+        assert _should_exclude_key("fid") is True
+        assert _should_exclude_key("gid") is True
+        assert _should_exclude_key("objectid") is True
+        assert _should_exclude_key("geometry_type") is True
+        assert _should_exclude_key("bbox") is True
+        assert _should_exclude_key("geom") is True
+        assert _should_exclude_key("ogc_fid") is True
+
+    def test_case_insensitive(self):
+        assert _should_exclude_key("OBJECTID") is True
+        assert _should_exclude_key("ObjectId") is True
+        assert _should_exclude_key("FID") is True
+
+    def test_suffix_id_excluded(self):
+        assert _should_exclude_key("user_id") is True
+        assert _should_exclude_key("feature_id") is True
+
+    def test_normal_keys_not_excluded(self):
+        assert _should_exclude_key("name") is False
+        assert _should_exclude_key("temperature") is False
+        assert _should_exclude_key("description") is False
+        assert _should_exclude_key("wind_speed") is False
+
+    def test_tricky_non_excluded(self):
+        """Keys that contain 'id' but aren't ID fields."""
+        assert _should_exclude_key("width") is False
+        assert _should_exclude_key("grid") is False
+        assert _should_exclude_key("video") is False
+
+
+class TestHumanizeKey:
+    """Tests for _humanize_key — converting property keys to readable labels."""
+
+    def test_snake_case(self):
+        assert _humanize_key("wind_speed") == "Wind Speed"
+
+    def test_camel_case(self):
+        assert _humanize_key("numberOfItems") == "Number Of Items"
+
+    def test_single_word(self):
+        assert _humanize_key("name") == "Name"
+
+    def test_mixed_underscore_and_camel(self):
+        assert _humanize_key("temp_celsius") == "Temp Celsius"
+
+    def test_already_capitalised(self):
+        assert _humanize_key("URL") == "Url"
+
+
+class TestFormatValue:
+    """Tests for _format_value — number formatting and unit suffix detection."""
+
+    def test_integer_comma_formatted(self):
+        assert _format_value("population", 1234567) == "1,234,567"
+
+    def test_float_no_trailing_zeros(self):
+        assert _format_value("score", 12.0) == "12"
+        assert _format_value("score", 12.5) == "12.5"
+
+    def test_celsius_suffix(self):
+        assert _format_value("temp_celsius", 12) == "12 °C"
+
+    def test_kmh_suffix(self):
+        assert _format_value("speed_kmh", 45.2) == "45.2 km/h"
+
+    def test_percent_suffix(self):
+        assert _format_value("humidity_percent", 85) == "85 %"
+
+    def test_string_passthrough(self):
+        assert _format_value("name", "London") == "London"
+
+    def test_none_returns_empty(self):
+        assert _format_value("x", None) == ""
+
+    def test_boolean_passthrough(self):
+        assert _format_value("active", True) == "True"
+        assert _format_value("active", False) == "False"
+
+    def test_large_float_with_unit(self):
+        assert _format_value("distance_km", 1234.5) == "1,234.5 km"
+
+
+class TestOrderFields:
+    """Tests for _order_fields — priority field ordering."""
+
+    def test_priority_fields_first(self):
+        result = _order_fields(["pop", "name", "type"])
+        assert result == ["name", "type", "pop"]
+
+    def test_no_priority_keys_preserves_order(self):
+        result = _order_fields(["foo", "bar", "baz"])
+        assert result == ["foo", "bar", "baz"]
+
+    def test_empty_list(self):
+        assert _order_fields([]) == []
+
+    def test_all_priority(self):
+        result = _order_fields(["status", "name", "description"])
+        assert result == ["name", "description", "status"]
+
+    def test_case_sensitive_match(self):
+        """Priority matching is case-insensitive via lowercase map."""
+        result = _order_fields(["Name", "pop"])
+        assert result == ["Name", "pop"]
+
+
+class TestPickTitle:
+    """Tests for _pick_title — smart title template selection."""
+
+    def test_name_only(self):
+        title, used = _pick_title(["name", "temp"], {"name", "temp"})
+        assert title == "{name}"
+        assert used == ["name"]
+
+    def test_name_and_type_compound(self):
+        title, used = _pick_title(["name", "type", "temp"], {"name", "type", "temp"})
+        assert title == "{name} — {type}"
+        assert used == ["name", "type"]
+
+    def test_name_and_category_compound(self):
+        title, used = _pick_title(["name", "category"], {"name", "category"})
+        assert title == "{name} — {category}"
+        assert used == ["name", "category"]
+
+    def test_title_key(self):
+        title, used = _pick_title(["title", "desc"], {"title", "desc"})
+        assert title == "{title}"
+        assert used == ["title"]
+
+    def test_label_key(self):
+        title, used = _pick_title(["label", "value"], {"label", "value"})
+        assert title == "{label}"
+        assert used == ["label"]
+
+    def test_no_known_keys_uses_first(self):
+        title, used = _pick_title(["temp", "wind"], {"temp", "wind"})
+        assert title == "{temp}"
+        assert used == ["temp"]
+
+    def test_empty_keys(self):
+        title, used = _pick_title([], set())
+        assert title == "{id}"
+        assert used == ["id"]
+
+
+class TestAutoPopupEnhanced:
+    """Tests for the enhanced _auto_popup with filtering, ordering, and compound titles."""
+
+    def test_excludes_internal_keys(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"_id": 1, "name": "London", "temp": 12},
+                }
+            ],
+        }
+        popup = _auto_popup(fc)
+        assert popup is not None
+        assert popup.title == "{name}"
+        # _id excluded, name in title, so fields = ["temp"]
+        assert popup.fields == ["temp"]
+
+    def test_compound_title_name_type(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"name": "Big Ben", "type": "Monument", "city": "London"},
+                }
+            ],
+        }
+        popup = _auto_popup(fc)
+        assert popup is not None
+        assert popup.title == "{name} — {type}"
+        assert "city" in popup.fields
+        assert "name" not in popup.fields
+        assert "type" not in popup.fields
+
+    def test_all_keys_excluded_returns_none(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"_id": 1, "fid": 2, "objectid": 3},
+                }
+            ],
+        }
+        assert _auto_popup(fc) is None
+
+    def test_fields_ordered_by_priority(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"pop": 9000000, "name": "London", "description": "Capital"},
+                }
+            ],
+        }
+        popup = _auto_popup(fc)
+        assert popup is not None
+        assert popup.title == "{name}"
+        # description should come before pop (priority ordering)
+        assert popup.fields == ["description", "pop"]
+
+    def test_no_features_returns_none(self):
+        fc = {"type": "FeatureCollection", "features": []}
+        assert _auto_popup(fc) is None
+
+    def test_empty_properties_returns_none(self):
+        fc = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {},
+                }
+            ],
+        }
+        assert _auto_popup(fc) is None
+
+
+class TestShowGeojsonAutoPopup:
+    """Tests that show_geojson now auto-generates popups."""
+
+    @pytest.mark.asyncio
+    async def test_show_geojson_has_popup(self):
+        geojson = json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Point", "coordinates": [-0.12, 51.5]},
+                        "properties": {"name": "London", "temp": "12°C"},
+                    }
+                ],
+            }
+        )
+        result = await show_geojson(geojson=geojson)
+        layer = result.layers[0]
+        assert layer.popup is not None
+        assert layer.popup.title == "{name}"
+        assert "temp" in layer.popup.fields
+
+    @pytest.mark.asyncio
+    async def test_show_geojson_no_properties_no_popup(self):
+        geojson = json.dumps(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [0, 0]},
+                "properties": {},
+            }
+        )
+        result = await show_geojson(geojson=geojson)
+        assert result.layers[0].popup is None

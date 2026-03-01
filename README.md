@@ -6,13 +6,15 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
-[![Tests: 97 passed](https://img.shields.io/badge/tests-97%20passed-brightgreen.svg)]()
+[![Tests: 158 passed](https://img.shields.io/badge/tests-158%20passed-brightgreen.svg)]()
 
 ## Features
 
 This MCP server provides 4 tools for creating interactive map views from GeoJSON data, image overlays, and tile layers.
 
 **All tools return fully-typed Pydantic v2 models** (`MapContent` / `LayersContent`) for type safety and validation.
+
+**Smart auto-popups**: When features have properties (e.g. name, temperature, description), clickable popups are generated automatically -- no explicit popup configuration needed. Internal keys (`_id`, `fid`, `objectid`, etc.) are filtered out, fields are priority-ordered (name, description, type first), and compound titles like "London -- Monument" are generated when both a name and type/category are present.
 
 ### Layer Types
 
@@ -26,10 +28,10 @@ This MCP server provides 4 tools for creating interactive map views from GeoJSON
 
 | # | Tool | Returns | Description |
 |---|------|---------|-------------|
-| 1 | `show_map` | `MapContent` | Full-featured map from one or more layers with custom styling, marker clustering, and click popups |
-| 2 | `show_geojson` | `MapContent` | Simplest path -- pass raw GeoJSON, get an interactive map with auto-centre and auto-zoom |
-| 3 | `show_bbox` | `MapContent` | Highlight a geographic bounding box as a filled polygon on a map |
-| 4 | `show_layers` | `LayersContent` | Lightweight multi-layer overview (no per-layer styling or popups) |
+| 1 | `show_map` | `MapContent` | Best for rich maps -- styling, clustering, popups, multiple layers, image/tile overlays |
+| 2 | `show_geojson` | `MapContent` | Quick single-layer map -- pass raw GeoJSON, auto-generates popups |
+| 3 | `show_bbox` | `MapContent` | Highlight a bounding box on a map |
+| 4 | `show_layers` | `LayersContent` | Simple multi-layer map with toggles (no styling or popups) |
 
 ## Installation
 
@@ -103,9 +105,9 @@ Once configured, you can ask Claude questions like:
 
 ## Tool Reference
 
-### 1. `show_map` -- Full-Featured Map
+### 1. `show_map` -- Rich Interactive Map
 
-Render an interactive map from one or more GeoJSON, image overlay, or tile layers. Each layer supports custom styling, marker clustering, and click popups.
+Best tool when you need clickable popups, styled markers, clustering, multiple layers, or image/tile overlays. Put data into GeoJSON feature properties and popups are auto-generated (or supply an explicit popup template for control).
 
 **Parameters:**
 
@@ -121,16 +123,22 @@ Render an interactive map from one or more GeoJSON, image overlay, or tile layer
 
 ```json
 {
-  "id": "sites",
-  "label": "Archaeological Sites",
-  "features": { "type": "FeatureCollection", "features": [...] },
+  "id": "cities",
+  "label": "UK Weather",
+  "features": {
+    "type": "FeatureCollection",
+    "features": [{
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-0.12, 51.5] },
+      "properties": { "name": "London", "temp": "12°C", "conditions": "Overcast", "wind": "18 km/h" }
+    }]
+  },
   "style": { "fillColor": "#3388ff", "fillOpacity": 0.4, "color": "#0044cc", "weight": 2 },
-  "cluster": true,
-  "popup": { "title": "{name}", "fields": ["name", "type", "period"] },
-  "visible": true,
-  "opacity": 1.0
+  "cluster": true
 }
 ```
+
+Popups are **auto-generated** from feature properties -- clicking a marker shows name, temp, conditions, and wind. To customise, add an explicit `popup` field: `{"title": "{name}", "fields": ["temp", "conditions"]}`.
 
 **Layer Definition (Image Overlay):**
 
@@ -160,9 +168,9 @@ Render an interactive map from one or more GeoJSON, image overlay, or tile layer
 }
 ```
 
-### 2. `show_geojson` -- Quick GeoJSON Map
+### 2. `show_geojson` -- Quick Single-Layer Map
 
-The simplest way to get a map -- pass raw GeoJSON and everything is auto-configured.
+Fastest way to get a map -- pass raw GeoJSON and everything is auto-configured. Auto-generates clickable popups from feature properties. Use `show_map` for full control over styling, clustering, and popup templates.
 
 **Parameters:**
 
@@ -243,7 +251,7 @@ pip install -e ".[dev]"
 ### Running Tests
 
 ```bash
-make test              # Run 97 tests
+make test              # Run 158 tests
 make test-cov          # Run tests with coverage
 make coverage-report   # Show coverage report
 ```
