@@ -1,13 +1,13 @@
 [project]
 name = "chuk-mcp-map"
-version = "1.0.2"
+version = "1.0.3"
 description = "MCP server for interactive geospatial visualisation — maps, GeoJSON layers, bounding boxes, and terrain overlays"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
 dependencies = [
     "chuk-mcp-server>=0.25.3",
-    "chuk-view-schemas>=0.1.7",
+    "chuk-view-schemas>=0.1.8",
 ]
 
 [project.optional-dependencies]
