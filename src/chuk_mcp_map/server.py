@@ -76,18 +76,20 @@ def _resolve_basemap(basemap: str) -> str:
     mcp,
     "show_map",
     description=(
-        "Render an interactive map from one or more GeoJSON, image overlay, or tile layers. "
-        "Each layer supports custom styling, marker clustering, and click popups. "
-        'GeoJSON layer: {"id":"l1","label":"Sites","features":{...GeoJSON...},'
-        '"style":{"fillColor":"#3388ff","fillOpacity":0.4},"cluster":false,'
-        '"popup":{"title":"{name}","fields":["name","type"]}}. '
+        "BEST FOR RICH MAPS — use this when you need clickable popups, labels, styled markers, "
+        "clustering, multiple layers, or image/tile overlays. "
+        "Put data into GeoJSON Feature properties and they appear in popups on click. "
+        "Example: to show cities with temperature, put temperature in properties and configure popup. "
+        'Layer with popup: {"id":"l1","label":"Cities","features":{"type":"FeatureCollection",'
+        '"features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[-0.12,51.5]},'
+        '"properties":{"name":"London","temp":"12°C","conditions":"Cloudy"}}]},'
+        '"popup":{"title":"{name}","fields":["name","temp","conditions"]},"cluster":true}. '
         'Image overlay: {"id":"img","label":"Thumbnail","layer_type":"image",'
-        '"image_url":"https://...","image_bounds":[[south_lat,west_lon],[north_lat,east_lon]],'
-        '"opacity":0.9,"visible":false}. '
-        'Tile layer: {"id":"tiles","label":"Custom Tiles","layer_type":"tiles",'
-        '"tile_url":"https://example.com/{z}/{x}/{y}.png","tile_attribution":"Source"}. '
-        "basemap: osm (default), satellite, terrain, dark. "
-        "center_lat/center_lon and zoom are auto-computed from features/bounds if omitted."
+        '"image_url":"https://...","image_bounds":[[south,west],[north,east]]}. '
+        'Tile layer: {"id":"tiles","label":"Tiles","layer_type":"tiles",'
+        '"tile_url":"https://example.com/{z}/{x}/{y}.png"}. '
+        "basemap: osm | satellite | terrain | dark. "
+        "center/zoom auto-computed if omitted."
     ),
     read_only_hint=True,
 )
@@ -172,10 +174,10 @@ async def show_map(
     mcp,
     "show_geojson",
     description=(
-        "RECOMMENDED for simple maps — pass raw GeoJSON and get an interactive map. "
+        "QUICK single-layer map — pass raw GeoJSON and get a map instantly. "
+        "No popups or labels — use show_map instead if you need clickable popups with data. "
         "Accepts FeatureCollection, Feature, or bare Geometry as a JSON string. "
-        "Auto-centres and auto-zooms on the features. "
-        "basemap: osm (default), satellite, terrain, dark."
+        "Auto-centres and auto-zooms. basemap: osm | satellite | terrain | dark."
     ),
     read_only_hint=True,
 )
@@ -247,9 +249,8 @@ async def show_geojson(
     mcp,
     "show_bbox",
     description=(
-        "Highlight a geographic bounding box as a filled polygon on an interactive map. "
-        "Useful for showing an area of interest, search extent, or raster coverage. "
-        "Coordinates are decimal degrees (WGS84): west, south, east, north."
+        "Highlight a bounding box on a map — pass west, south, east, north (decimal degrees WGS84). "
+        "Use for areas of interest, search extents, or coverage regions."
     ),
     read_only_hint=True,
 )
@@ -309,10 +310,9 @@ async def show_bbox(
     mcp,
     "show_layers",
     description=(
-        "Render a simplified multi-layer map overview (no per-layer styling or popups). "
-        "Lighter than show_map — use this for quick multi-dataset overviews. "
-        'layers: JSON array — [{"id":"l1","label":"Layer 1","features":{...GeoJSON...}}]. '
-        "Use show_map for styled, interactive layers with clustering and popups."
+        "Simple multi-layer map — no styling or popups, just multiple GeoJSON layers with toggles. "
+        "Use show_map instead if you need popups, styling, or clustering. "
+        'layers: JSON array — [{"id":"l1","label":"Layer 1","features":{...GeoJSON...}}].'
     ),
     read_only_hint=True,
 )

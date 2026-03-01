@@ -1,6 +1,6 @@
 [project]
 name = "chuk-mcp-map"
-version = "1.0.0"
+version = "1.0.1"
 description = "MCP server for interactive geospatial visualisation — maps, GeoJSON layers, bounding boxes, and terrain overlays"
 readme = "README.md"
 license = { text = "Apache-2.0" }
