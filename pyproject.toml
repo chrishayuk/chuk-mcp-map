@@ -1,0 +1,57 @@
+[project]
+name = "chuk-mcp-map"
+version = "1.0.0"
+description = "MCP server for interactive geospatial visualisation — maps, GeoJSON layers, bounding boxes, and terrain overlays"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+dependencies = [
+    "chuk-mcp-server>=0.25.3",
+    "chuk-view-schemas>=0.1.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "black>=24.0.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "bandit>=1.7.0",
+]
+
+[project.scripts]
+chuk-mcp-map = "chuk_mcp_map.server:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "chuk_mcp_server",
+    "chuk_mcp_server.*",
+    "chuk_view_schemas",
+    "chuk_view_schemas.*",
+]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
