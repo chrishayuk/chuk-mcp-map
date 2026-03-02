@@ -175,7 +175,8 @@ async def show_map(
         "Clickable popups are auto-generated from feature properties (name, temp, conditions, etc.). "
         "Just build a GeoJSON FeatureCollection with properties and pass it as a string. "
         "Accepts FeatureCollection, Feature, or bare Geometry. "
-        "icon: optional URL to a PNG/SVG image to use as the marker icon instead of the default blue pin. "
+        "CUSTOM MARKER ICONS: Set icon param for one icon on all markers, OR put an 'icon' URL in "
+        "each feature's properties for per-marker icons (e.g. different icons per point). "
         "Auto-centres and auto-zooms. basemap: osm | satellite | terrain | dark."
     ),
     read_only_hint=True,

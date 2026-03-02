@@ -280,6 +280,7 @@ _EXCLUDE_EXACT: set[str] = {
     "geometry",
     "shape",
     "ogc_fid",
+    "icon",
 }
 
 # Key suffixes that trigger exclusion
