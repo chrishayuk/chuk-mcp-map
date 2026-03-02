@@ -1372,3 +1372,31 @@ class TestShowGeojsonAutoPopup:
         )
         result = await show_geojson(geojson=geojson)
         assert result.layers[0].popup is None
+
+    @pytest.mark.asyncio
+    async def test_show_geojson_custom_icon(self):
+        geojson = json.dumps(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [-0.12, 51.5]},
+                "properties": {"name": "London"},
+            }
+        )
+        result = await show_geojson(geojson=geojson, icon="https://example.com/marker.png")
+        style = result.layers[0].style
+        assert style is not None
+        assert style.icon == "https://example.com/marker.png"
+
+    @pytest.mark.asyncio
+    async def test_show_geojson_no_icon_default(self):
+        geojson = json.dumps(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [0, 0]},
+                "properties": {},
+            }
+        )
+        result = await show_geojson(geojson=geojson)
+        style = result.layers[0].style
+        # Default style has no icon
+        assert style is None or style.icon is None

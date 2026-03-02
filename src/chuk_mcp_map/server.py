@@ -175,6 +175,7 @@ async def show_map(
         "Clickable popups are auto-generated from feature properties (name, temp, conditions, etc.). "
         "Just build a GeoJSON FeatureCollection with properties and pass it as a string. "
         "Accepts FeatureCollection, Feature, or bare Geometry. "
+        "icon: optional URL to a PNG/SVG image to use as the marker icon instead of the default blue pin. "
         "Auto-centres and auto-zooms. basemap: osm | satellite | terrain | dark."
     ),
     read_only_hint=True,
@@ -185,6 +186,7 @@ async def show_geojson(
     basemap: str = "osm",
     fill_color: Optional[str] = None,
     stroke_color: Optional[str] = None,
+    icon: Optional[str] = None,
     cluster: bool = False,
 ) -> MapContent:
     """Render raw GeoJSON as an interactive single-layer map.
@@ -196,6 +198,8 @@ async def show_geojson(
         basemap: Base map tiles — osm (default), satellite, terrain, dark.
         fill_color: Polygon / circle fill colour (hex, e.g. "#3388ff").
         stroke_color: Line / polygon stroke colour (hex).
+        icon: URL to a PNG/SVG image to use as the marker icon (replaces the
+            default blue pin). Example: "https://cdn.example.com/weather/cloudy.png".
         cluster: Cluster point markers (default false).
 
     Returns:
@@ -218,6 +222,8 @@ async def show_geojson(
         style_dict["fill_opacity"] = 0.4
     if stroke_color:
         style_dict["color"] = stroke_color
+    if icon:
+        style_dict["icon"] = icon
 
     style = build_layer_style(style_dict, LAYER_COLOURS[0] if not style_dict else None)
     cluster_config = ClusterConfig(enabled=True, radius=80) if cluster else None
