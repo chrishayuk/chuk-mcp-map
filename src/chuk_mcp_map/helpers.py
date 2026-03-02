@@ -233,10 +233,18 @@ def build_layer_style(
 # ---------------------------------------------------------------------------
 
 
-def parse_layer_defs(layers_json: str) -> list[dict[str, Any]]:
-    """Parse a JSON array of layer definition objects."""
+def parse_layer_defs(layers_raw: str | list[Any]) -> list[dict[str, Any]]:
+    """Parse layer definitions from a JSON string or a pre-parsed list.
+
+    Accepts either a JSON-encoded string (``'[{...}, ...]'``) or a Python
+    list of dicts.  This makes the tool resilient to both string-encoded
+    and directly-passed JSON arrays from LLM tool calls.
+    """
+    if isinstance(layers_raw, list):
+        return layers_raw
+
     try:
-        layers = json.loads(layers_json)
+        layers = json.loads(layers_raw)
     except json.JSONDecodeError as exc:
         raise ValueError(f"layers must be a valid JSON array: {exc}") from exc
 

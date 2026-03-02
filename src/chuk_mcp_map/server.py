@@ -14,7 +14,7 @@ Used by chuk-mcp-stac, chuk-mcp-dem, and any other server that needs a map UI.
 
 import logging
 import sys
-from typing import Optional
+from typing import Any, Optional, Union
 
 from chuk_mcp_server import ChukMCPServer
 from chuk_view_schemas.layers import LayersCenter, LayersContent
@@ -77,17 +77,13 @@ def _resolve_basemap(basemap: str) -> str:
     mcp,
     "show_map",
     description=(
-        "BEST FOR RICH MAPS — use this when you need clickable popups, labels, styled markers, "
-        "clustering, multiple layers, or image/tile overlays. "
-        "Put data into GeoJSON Feature properties and they appear in popups on click. "
-        "Example: to show cities with temperature, put temperature in properties and configure popup. "
-        'Layer with popup: {"id":"l1","label":"Cities","features":{"type":"FeatureCollection",'
-        '"features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[-0.12,51.5]},'
-        '"properties":{"name":"London","temp":"12°C","conditions":"Cloudy"}}]},'
-        '"popup":{"title":"{name}","fields":["name","temp","conditions"]},"cluster":true}. '
-        'Image overlay: {"id":"img","label":"Thumbnail","layer_type":"image",'
+        "ADVANCED multi-layer map — use ONLY when you need multiple layers, image overlays, "
+        "tile layers, or explicit custom styling. For single-layer maps, use show_geojson instead. "
+        "layers: JSON array of layer objects. "
+        'GeoJSON layer: {"id":"l1","label":"Layer","features":{...GeoJSON...},"style":{...},"cluster":true}. '
+        'Image overlay: {"id":"img","layer_type":"image","label":"Thumbnail",'
         '"image_url":"https://...","image_bounds":[[south,west],[north,east]]}. '
-        'Tile layer: {"id":"tiles","label":"Tiles","layer_type":"tiles",'
+        'Tile layer: {"id":"tiles","layer_type":"tiles","label":"Tiles",'
         '"tile_url":"https://example.com/{z}/{x}/{y}.png"}. '
         "basemap: osm | satellite | terrain | dark. "
         "center/zoom auto-computed if omitted."
@@ -95,7 +91,7 @@ def _resolve_basemap(basemap: str) -> str:
     read_only_hint=True,
 )
 async def show_map(
-    layers: str,
+    layers: Union[str, list[Any]],
     basemap: str = "osm",
     center_lat: Optional[float] = None,
     center_lon: Optional[float] = None,
@@ -175,10 +171,10 @@ async def show_map(
     mcp,
     "show_geojson",
     description=(
-        "QUICK single-layer map — pass raw GeoJSON and get a map instantly. "
-        "Auto-generates clickable popups from feature properties. "
-        "Use show_map for full control over styling, clustering, and popup templates. "
-        "Accepts FeatureCollection, Feature, or bare Geometry as a JSON string. "
+        "RECOMMENDED for single-layer maps — pass raw GeoJSON and get an interactive map instantly. "
+        "Clickable popups are auto-generated from feature properties (name, temp, conditions, etc.). "
+        "Just build a GeoJSON FeatureCollection with properties and pass it as a string. "
+        "Accepts FeatureCollection, Feature, or bare Geometry. "
         "Auto-centres and auto-zooms. basemap: osm | satellite | terrain | dark."
     ),
     read_only_hint=True,
@@ -322,7 +318,7 @@ async def show_bbox(
     read_only_hint=True,
 )
 async def show_layers(
-    layers: str,
+    layers: Union[str, list[Any]],
     title: Optional[str] = None,
     basemap: str = "osm",
     center_lat: Optional[float] = None,

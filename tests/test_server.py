@@ -244,6 +244,16 @@ class TestParseLayerDefs:
         with pytest.raises(ValueError, match="JSON array"):
             parse_layer_defs('{"id":"a"}')
 
+    def test_accepts_list_directly(self):
+        """LLMs may pass a pre-parsed list instead of a JSON string."""
+        raw_list = [{"id": "a", "label": "A", "features": FEATURE_COLLECTION}]
+        defs = parse_layer_defs(raw_list)
+        assert len(defs) == 1
+        assert defs[0]["id"] == "a"
+
+    def test_accepts_empty_list_directly(self):
+        assert parse_layer_defs([]) == []
+
 
 # ===========================================================================
 # Helper: build_map_layer
@@ -436,6 +446,14 @@ class TestShowMap:
     @pytest.mark.asyncio
     async def test_basic(self):
         result = await show_map(layers=self._layers_json())
+        assert result.type == "map"
+        assert len(result.layers) == 1
+
+    @pytest.mark.asyncio
+    async def test_accepts_list_directly(self):
+        """LLMs may pass layers as a pre-parsed list instead of a JSON string."""
+        layers_list = [{"id": "l1", "label": "Sites", "features": FEATURE_COLLECTION}]
+        result = await show_map(layers=layers_list)
         assert result.type == "map"
         assert len(result.layers) == 1
 
