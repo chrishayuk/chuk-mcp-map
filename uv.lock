@@ -123,7 +123,7 @@ dev = [
 requires-dist = [
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=24.0.0" },
-    { name = "chuk-mcp-server", specifier = ">=0.25.3" },
+    { name = "chuk-mcp-server", specifier = ">=0.25.4" },
     { name = "chuk-view-schemas", specifier = ">=0.1.8" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
@@ -135,7 +135,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "chuk-mcp-server"
-version = "0.25.3"
+version = "0.25.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chuk-mcp" },
@@ -150,9 +150,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "uvloop", marker = "sys_platform != 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d5/15/a91c0afab0ccd87e3de3a9990dc768afad03b658450bdff19c2b37176236/chuk_mcp_server-0.25.3.tar.gz", hash = "sha256:e67874a120b93c4ef0d4bf12ac61f687d69a7eb267a745023bbe6ad3d89c8dac", size = 731295, upload-time = "2026-03-01T14:13:12.293Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/71/57cf25f87141fae61725410b215bf806b71cfd5af8756bb11e8cda38e7ee/chuk_mcp_server-0.25.4.tar.gz", hash = "sha256:f5dcc2ae6ccbf272c426b9546399fbf3e26562cd2345e8b0aa0b3fd19439f255", size = 736026, upload-time = "2026-04-23T17:23:21.132Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a4/0b/2013c8bdf39037095ddc106efbdda50f0f38ec7c97af24d31f416a339001/chuk_mcp_server-0.25.3-py3-none-any.whl", hash = "sha256:1c3f53512f986dbe80f56f5b955f55f365da25fc6d42aefc4cda5866ae21cbb3", size = 197468, upload-time = "2026-03-01T14:13:10.344Z" },
+    { url = "https://files.pythonhosted.org/packages/67/b4/b19c4629afb22543b8f7ead3759fc50bcf97c211c4e1e72329e7cc5a504c/chuk_mcp_server-0.25.4-py3-none-any.whl", hash = "sha256:df0ad5be600a78d91cc4c2676d733f3a30c276546194abe1419f78b31e17b1c4", size = 198660, upload-time = "2026-04-23T17:23:19.255Z" },
 ]
 
 [[package]]
