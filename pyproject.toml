@@ -6,7 +6,7 @@ readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
 dependencies = [
-    "chuk-mcp-server>=0.25.4",
+    "chuk-mcp-server>=0.25.5",
     "chuk-view-schemas>=0.1.8",
 ]
 
@@ -23,6 +23,17 @@ dev = [
 
 [project.scripts]
 chuk-mcp-map = "chuk_mcp_map.server:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "black>=24.0.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "bandit>=1.7.0",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -55,3 +66,7 @@ follow_imports = "skip"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101", "B105", "B108", "B110"]
